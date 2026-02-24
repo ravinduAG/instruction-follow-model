@@ -1,4 +1,5 @@
 from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from movement_features import MovementAnalyzer
 from pose_feature_extractor import extract_pose_features
 import cv2
@@ -8,6 +9,14 @@ import io
 import joblib
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Load your model
 try:
