@@ -26,6 +26,19 @@ except Exception as e:
     scaler = None
     print(f"Warning: Could not load model/scaler file. {e}")
 
+def sanitize(val):
+    """Convert numpy types to native Python types for JSON serialization."""
+    if isinstance(val, (np.floating, np.float32, np.float64)):
+        return float(val)
+    if isinstance(val, (np.integer, np.int32, np.int64)):
+        return int(val)
+    if isinstance(val, (np.bool_,)):
+        return bool(val)
+    return val
+
+def sanitize_dict(d: dict) -> dict:
+    return {k: sanitize(v) for k, v in d.items()}
+
 @app.post("/predict")
 async def predict(
     file: UploadFile = File(...),
@@ -35,14 +48,19 @@ async def predict(
     image = Image.open(io.BytesIO(contents))
     frame = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
-    # Pass instruction into feature extractor
     features = extract_pose_features(frame, instruction)
     if not features:
-        return {"error": "No pose detected"}
+        return {
+            "prediction": 0,
+            "probability": 0.1,
+            "error": "No pose detected",
+            "instruction_check": {"target_met": False, "target_distance": 1.0, "instruction_type": "none"},
+            "features": {}
+        }
 
     instruction_check = features.get("instruction_check", {})
-    target_met = instruction_check.get("target_met", False)
-    target_distance = instruction_check.get("target_distance", 1.0)
+    target_met      = bool(instruction_check.get("target_met", False))
+    target_distance = float(instruction_check.get("target_distance", 1.0))
 
     analyzer = MovementAnalyzer()
     analyzer.update(features["left_elbow_angle"], features["right_elbow_angle"])
@@ -50,24 +68,21 @@ async def predict(
     if not computed_features:
         return {"error": "Not enough data"}
 
-    # ── If instruction check explicitly fails, return prediction=0 early ──
-    if not target_met:
+    computed_features = sanitize_dict(computed_features)
+
+    # ── Use pose check as the primary decision ──
+    if target_met:
         return {
-            "prediction": 0,
-            "probability": max(0.1, 1.0 - target_distance),  # rough confidence
-            "features": computed_features,
+            "prediction":        1,
+            "probability":       float(max(0.75, 1.0 - target_distance)),
+            "features":          computed_features,
             "instruction_check": instruction_check,
-            "reason": f"Pose check failed for: {instruction}"
         }
-
-    # ── Run ML model for final prediction ──
-    X = np.array([list(computed_features.values())])
-    prediction = model.predict(X)[0]
-    probability = model.predict_proba(X).max()
-
-    return {
-        "prediction": int(prediction),
-        "probability": float(probability),
-        "features": computed_features,
-        "instruction_check": instruction_check,
-    }
+    else:
+        return {
+            "prediction":        0,
+            "probability":       float(max(0.1, 1.0 - target_distance)),
+            "features":          computed_features,
+            "instruction_check": instruction_check,
+            "reason":            f"Pose check failed for: {instruction}"
+        }

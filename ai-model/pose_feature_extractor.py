@@ -42,7 +42,7 @@ def check_instruction(landmarks, instruction: str) -> dict:
         min_dist   = min(left_dist, right_dist)
         return {
             "target_distance": float(min_dist),
-            "target_met":      bool(min_dist < 0.15),
+            "target_met":      bool(min_dist < 0.25),   # relaxed from 0.15 → 0.25
             "instruction_type": "touch_nose"
         }
 
@@ -53,8 +53,9 @@ def check_instruction(landmarks, instruction: str) -> dict:
         left_ear    = landmarks[7]   # LEFT_EAR=7
         right_ear   = landmarks[8]   # RIGHT_EAR=8
 
-        left_above  = bool(left_wrist.y  < left_ear.y  + 0.05)
-        right_above = bool(right_wrist.y < right_ear.y + 0.05)
+        # relaxed margin from 0.05 → 0.15 (wrist just needs to be near ear height)
+        left_above  = bool(left_wrist.y  < left_ear.y  + 0.15)
+        right_above = bool(right_wrist.y < right_ear.y + 0.15)
         best_dist   = min(dist(15, 7), dist(16, 8))
         return {
             "target_distance": float(best_dist),
@@ -69,8 +70,9 @@ def check_instruction(landmarks, instruction: str) -> dict:
         left_shoulder  = landmarks[11]
         right_shoulder = landmarks[12]
 
-        left_raised  = bool(left_wrist.y  < left_shoulder.y  - 0.05)
-        right_raised = bool(right_wrist.y < right_shoulder.y - 0.05)
+        # relaxed: wrist just needs to be at or above shoulder level (was -0.05 → +0.05)
+        left_raised  = bool(left_wrist.y  < left_shoulder.y  + 0.05)
+        right_raised = bool(right_wrist.y < right_shoulder.y + 0.05)
         height_diff  = min(
             left_shoulder.y  - left_wrist.y,
             right_shoulder.y - right_wrist.y
@@ -86,7 +88,7 @@ def check_instruction(landmarks, instruction: str) -> dict:
         wrist_dist = dist(15, 16)  # LEFT_WRIST=15, RIGHT_WRIST=16
         return {
             "target_distance": float(wrist_dist),
-            "target_met":      bool(wrist_dist < 0.15),
+            "target_met":      bool(wrist_dist < 0.25),   # relaxed from 0.15 → 0.25
             "instruction_type": "clap_hands"
         }
 
